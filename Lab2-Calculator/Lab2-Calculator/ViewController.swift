@@ -11,10 +11,10 @@ import UIKit
 class ViewController: UIViewController {
     
     @IBOutlet weak var resultDisplay: UILabel!
+    @IBOutlet weak var historyDisplay: UILabel!
     
-    private var clearPressed = false
-    private var memory: String?
     private var brain: CalculatorBrain = CalculatorBrain()
+    private var shouldInputReset = true
     
     private var mainDisplayValue: String {
         get {
@@ -32,72 +32,57 @@ class ViewController: UIViewController {
     @IBAction func onButtonPressed(_ sender: UIButton) {
         //Handle it somehow and not just unwrap?
         let action = sender.currentTitle ?? "Error"
+        historyDisplay.text! += action
         
         if let number = Double(action) {
+            if mainDisplayValue.count <= 15 {
             processNumber(number)
+            }
+        } else if action == "." {
+                if(shouldInputReset) {
+                    print("In")
+                    mainDisplayValue = "0."
+                } else {
+                    if(!mainDisplayValue.contains(".")) {
+                mainDisplayValue += action
+                    }
+                }
+                shouldInputReset = false
         } else {
             processFunction(action)
         }
+        
     }
     
     private func processNumber(_ number: Double) {
-        clearPressed = false
         
-        if(mainDisplayValue == "0") {
+        if(shouldInputReset) {
             setMainDisplayValue(number)
         } else {
-            setMainDisplayValue(Double(mainDisplayValue + "\(number)")!)
+            setMainDisplayValue(Double(mainDisplayValue + "\(Int(number))")!)
         }
+        shouldInputReset = false
+        
     }
     
     private func processFunction(_ function: String) {
-        
-        brain.setOperand(Double(mainDisplayValue)!)
+
+        if(!shouldInputReset) {
+            brain.setOperand(Double(mainDisplayValue)!)
+        }
         brain.performOperation(function)
-        
         if let result = brain.result {
             setMainDisplayValue(result)
         } else {
             setMainDisplayValue(0)
         }
-//        
-//        if(function != "C") {
-//            clearPressed = false
-//        }
-//        
-//        switch(function) {
-//            
-//        case ".":
-//            if(!mainDesplayValue.contains(".")) {
-//                mainDesplayValue += function
-//            }
-//        case "π":
-//            setMainDisplayValue(Double.pi)
-//        case "e":
-//            setMainDisplayValue(2.7182818284590)
-//        case "C":
-//            mainDesplayValue = "0"
-//            if !clearPressed {
-//                clearPressed = true
-//            } else {
-//                print("Stack cleared!")
-//                clearPressed = false
-//            }
-//        case "MR":
-//            if memory != nil {
-//                mainDesplayValue = memory!
-//            }
-//        case "MC":
-//            memory = nil
-//        case "MS":
-//            memory = mainDesplayValue
-//        case "M+":
-//            if memory != nil {
-//                memory = "\(Double(memory!)! + Double(mainDesplayValue)!)"
-//            }
-//        default:
-//            break
-//        }
+        
+        if function == "=" {
+            historyDisplay.text! = ""
+        }
+    
+        shouldInputReset = true
+
         
     }
     
