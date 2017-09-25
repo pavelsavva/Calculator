@@ -11,12 +11,7 @@ import UIKit
 class ViewController: UIViewController {
     
     @IBOutlet weak var resultDisplay: UILabel!
-    @IBOutlet weak var historyDisplay: UILabel!
-    
-    private var brain: CalculatorBrain = CalculatorBrain()
-    private var shouldInputReset = true
-    
-    private var mainDisplayValue: String {
+    private var resultDisplayValue: String {
         get {
             return resultDisplay.text!
         }
@@ -25,67 +20,83 @@ class ViewController: UIViewController {
         }
     }
     
-    private func setMainDisplayValue(_ number: Double) {
-        mainDisplayValue = (number.truncatingRemainder(dividingBy: 1) == 0 ? "\(Int(number))" : "\(Double(number))")
+    @IBOutlet weak var historyDisplay: UILabel!
+    
+    //Collection of all buttons to set borders
+    @IBOutlet var buttons: [UIButton]! {
+        didSet {
+            for button in buttons {
+                button.layer.borderWidth = 0.5
+                button.layer.borderColor = UIColor.white.cgColor
+            }
+        }
     }
     
+    private var brain: CalculatorBrain = CalculatorBrain()
+    private var shouldInputReset = true
+    
     @IBAction func onButtonPressed(_ sender: UIButton) {
-        //Handle it somehow and not just unwrap?
-        let action = sender.currentTitle ?? "Error"
-        historyDisplay.text! += action
         
-        if let number = Double(action) {
-            if mainDisplayValue.count <= 15 {
+        let action = sender.currentTitle!
+        
+        if let number = Int(action) {
             processNumber(number)
-            }
         } else if action == "." {
-                if(shouldInputReset) {
-                    print("In")
-                    mainDisplayValue = "0."
-                } else {
-                    if(!mainDisplayValue.contains(".")) {
-                mainDisplayValue += action
-                    }
-                }
-                shouldInputReset = false
+            processDecimalPoint()
         } else {
             processFunction(action)
         }
         
     }
     
-    private func processNumber(_ number: Double) {
+    private func processDecimalPoint() {
         
-        if(shouldInputReset) {
-            setMainDisplayValue(number)
-        } else {
-            setMainDisplayValue(Double(mainDisplayValue + "\(Int(number))")!)
+        if shouldInputReset {
+            resultDisplayValue = "0."
+        } else if !resultDisplayValue.contains(".") {
+            resultDisplayValue += "."
         }
         shouldInputReset = false
         
     }
     
-    private func processFunction(_ function: String) {
-
-        if(!shouldInputReset) {
-            brain.setOperand(Double(mainDisplayValue)!)
-        }
-        brain.performOperation(function)
-        if let result = brain.result {
-            setMainDisplayValue(result)
-        } else {
-            setMainDisplayValue(0)
+    private func processNumber(_ number: Int) {
+        
+        if shouldInputReset {
+            setMainDisplayValue(Double(number))
+        } else if resultDisplayValue.count <= 15 {
+            setMainDisplayValue(Double(resultDisplayValue + "\(number)")!)
         }
         
-        if function == "=" {
-            historyDisplay.text! = ""
-        }
-    
-        shouldInputReset = true
-
+        shouldInputReset = false
         
     }
     
+    private func processFunction(_ function: String) {
+        
+        if(shouldInputReset) {
+            brain.setOperand(Double(resultDisplayValue)!, false)
+        } else {
+            brain.setOperand(Double(resultDisplayValue)!, true)
+        }
+        
+        brain.performOperation(function)
+        
+        if let result = brain.result {
+            setMainDisplayValue(result)
+            shouldInputReset = false
+        } else {
+            shouldInputReset = true
+        }
+        
+        historyDisplay.text! = brain.getHistory()
+        
+        
+    }
+    
+    private func setMainDisplayValue(_ number: Double) {
+        resultDisplayValue = (number.truncatingRemainder(dividingBy: 1) == 0 ? "\(Int(number))" : "\(Double(number))")
+    }
     
 }
 
