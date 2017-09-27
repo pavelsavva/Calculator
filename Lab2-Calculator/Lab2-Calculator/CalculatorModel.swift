@@ -10,24 +10,34 @@ import Foundation
 
 struct CalculatorBrain {
     
-    private var accumulator: Double?
-    private var isNew: Bool?
-    private var currentOperand: Double?
-    private var currentFunction: ((Double, Double) -> (Double))?
     private var memory: Double = 0
-    private var operatorsHistory = [String?]()
-    private var operandsHistory = [Double?]()
-    private var clearWasPressed = false
+    private var operators = [String]()
+    private var evaluators = [String]()
+    
+    private var currentState: State
+
+    init() {
+        currentState = .cleared
+    }
     
     private enum Operation {
         case constant(Double)
         case unaryOperation((Double) -> Double)
         case binaryOperation((Double, Double) -> Double)
         case equals()
-        
         case unaryMemoryOperation((inout Double) -> Void)
         case binaryMemoryOperation((inout Double, inout Double) -> Void)
         case clear()
+        case decimal()
+    }
+    
+    private enum State {
+        case precalculated
+        case calculated
+        case binary
+        case unary
+        case cleared
+        case decimal
     }
     
     private var operations: Dictionary<String, Operation> = [
@@ -45,10 +55,11 @@ struct CalculatorBrain {
         "tan": Operation.unaryOperation({tan($0)}),
         "cot": Operation.unaryOperation({1/tan($0)}),
         "±": Operation.unaryOperation({-$0}),
-        "|x|": Operation.unaryOperation({abs(-$0)}),
+        "ln": Operation.unaryOperation({log($0)}),
         
         "=": Operation.equals(),
         "C": Operation.clear(),
+        ".": Operation.decimal(),
         
         "MC": Operation.unaryMemoryOperation({$0 = 0}),
         
@@ -57,177 +68,193 @@ struct CalculatorBrain {
         "M+": Operation.binaryMemoryOperation({$0 += $1})
     ]
     
-    mutating func performOperation(_ symbol: String) {
+    private var binaryOperatorsPrecedence: Dictionary<String, Int> = [
+        "+": 0,
+        "-": 0,
+        "*": 1,
+        "/": 1
+    ]
+    
+//            case .binaryMemoryOperation(let function):
+//                if accumulator != nil {
+//                    function(&memory, &accumulator!)
+//                }
+//
+//            case .unaryMemoryOperation(let function):
+//                function(&memory)
+//
+//            }
+    
+    mutating func setOperand(_ operand: String) -> (Double?, String) {
         
-        if let operation = operations[symbol] {
-            
-            var operationIsClear = false
+        if Int(operand) != nil {
+            switch currentState {
+            case .calculated:
+                operators = []
+                fallthrough
+            case .binary,
+                 .unary,
+                 .cleared:
+                operators.append(operand)
+                currentState = .precalculated
+            case .precalculated:
+                if Double(operators[operators.count -  1]) != nil {
+                operators[operators.count -  1] += operand
+                } else {
+                    operators[operators.count -  1] = operand
+                }
+                currentState = .precalculated
+            case .decimal:
+                operators[operators.count -  1] += ".\(operand)"
+                currentState = .precalculated
+            }
+        } else if let operation = operations[operand] {
             
             switch operation {
                 
-            case .constant(let value):
-                accumulator = value
-                
-            case .unaryOperation(let function):
-                if accumulator != nil {
-                    accumulator = function(accumulator!)
-                }
-                
-            case .binaryOperation(let function):
-                //                if currentOperand != nil {
-                //                    accumulator = currentFunction!(currentOperand!, accumulator!)
-                //                    currentFunction = function
-                //                    currentOperand = accumulator
-                //                } else {
-                //                    currentFunction = function
-                //                    currentOperand = accumulator
-                //                }
-                
-                if accumulator != nil && isNew != nil {
-                    if isNew! {
-                        operandsHistory.append(accumulator!)
-                        operatorsHistory.append(symbol)
-                    } else {
-                        if operatorsHistory.isEmpty {
-                            operatorsHistory.append(symbol)
-                            operandsHistory.append(accumulator!)
-                        } else {
-                        operatorsHistory[operatorsHistory.count - 1] = symbol
-                        }
+            case .constant(_):
+                switch currentState {
+                    case .calculated:
+                        operators = []
+                        fallthrough
+                    case .binary,
+                         .unary,
+                         .cleared:
+                        operators.append(operand)
+                        currentState = .precalculated
+                    case .precalculated,
+                         .decimal:
+                        operators[operators.count - 1] = operand
+                        currentState = .precalculated
                     }
-                }
-                accumulator = nil
-                print(operatorsHistory)
-                print(operandsHistory)
                 
-            case .equals():
-                //                if currentOperand != nil {
-                //                    accumulator = currentFunction!(currentOperand!, accumulator!)
-                //                    currentOperand = nil
-                //                }
-                if accumulator != nil {
-                    operandsHistory.append(accumulator!)
-                    print(operatorsHistory)
-                    print(operandsHistory)
-                    evaluate()
-                    operandsHistory = []
-                    operatorsHistory = []
-                    print(operatorsHistory)
-                    print(operandsHistory)
+            case .unaryOperation(_):
+                switch currentState {
+                    case .calculated:
+                        operators = []
+                        fallthrough
+                    case .binary,
+                         .cleared,
+                         .unary:
+                        operators.append(operand)
+                        currentState = .unary
+                    case .precalculated,
+                         .decimal:
+                        break
                 }
                 
-            case .clear():
-                //                if(accumulator == nil) {
-                //                    currentFunction = nil
-                //                    currentOperand = nil
-                //                } else {
-                //                    accumulator = nil
-                //                }
-                if clearWasPressed {
-                    accumulator = 0
-                    operatorsHistory = []
-                    operandsHistory = []
-                } else {
-                    clearWasPressed = true
-                    accumulator = 0
-                }
-                operationIsClear = true
-                
-            case .binaryMemoryOperation(let function):
-                if accumulator != nil {
-                    function(&memory, &accumulator!)
+            case .binaryOperation(_):
+                switch currentState {
+                case .precalculated:
+                    operators.append(operand)
+                    currentState = .binary
+                case .binary:
+                    operators[operators.count - 1] = operand
+                    case .unary,
+                     .decimal,
+                     .calculated,
+                     .cleared:
+                    break
                 }
                 
-            case .unaryMemoryOperation(let function):
-                function(&memory)
-                
+            case .equals:
+                break
+            case .unaryMemoryOperation(_):
+                break
+            case .binaryMemoryOperation(_):
+                break
+            case .clear:
+                operators = []
+                currentState = .cleared
+            case .decimal:
+                switch currentState {
+                case .calculated:
+                    operators = []
+                    fallthrough
+                case .cleared,
+                     .binary,
+                     .unary:
+                    operators.append("0")
+                    currentState = .decimal
+                case .precalculated:
+                    if !operators[operators.count - 1].contains(".") && Double(operators[operators.count -  1]) != nil {
+                        currentState = .decimal
+                    }
+                case .decimal:
+                    break
+                }
             }
             
-            if operationIsClear {
-                clearWasPressed = true
+        }
+        
+        if currentState == .precalculated {
+            evaluateOperators()
+            return (evaluate(evaluators[0], 0).0, operators.joined(separator: ""))
+        } else {
+            if currentState == .decimal {
+                return (nil, operators.joined(separator: "")+".")
+            } else {
+            return (nil, operators.joined(separator: ""))
             }
         }
         
     }
     
-    private mutating func evaluate() {
-    
-        var lastNumberIndex: Int = 0
+    mutating private func evaluateOperators() {
+        evaluators = []
         
-        for (index, symbol) in operatorsHistory.enumerated() {
-            if symbol == "*" {
-                let validIndex = operandsHistory[index] != nil ? index : lastNumberIndex
-                let currentValue = operandsHistory[index]
+        for operand in operators {
+            if Double(operand) != nil {
+                evaluators.append(operand)
+            } else if let operation = operations[operand] {
                 
-                operandsHistory[index] = operandsHistory[validIndex]! * operandsHistory[index+1]!
-                if currentValue == nil {
-                    operandsHistory[lastNumberIndex] = nil
+                switch operation {
+                case .constant(_):
+                    evaluators.append(operand)
+                case .unaryOperation(_):
+                    evaluators.append(operand)
+                case .binaryOperation(_):
+                    if let precedence = binaryOperatorsPrecedence[operand] {
+                        if precedence == 0 {
+                            evaluators.insert(operand, at: 0)
+                        } else if precedence == 1 {
+                            evaluators.insert(operand, at: evaluators.count - 1)
+                        }
+                    }
+                case .equals,
+                     .unaryMemoryOperation(_),
+                     .binaryMemoryOperation(_),
+                     .clear,
+                     .decimal:
+                    break
                 }
-                operatorsHistory[index] = nil
-                operandsHistory[index+1] = nil
                 
-                lastNumberIndex = index
-            } else if symbol == "/" {
-                let validIndex = operandsHistory[index] != nil ? index : lastNumberIndex
-                let currentValue = operandsHistory[index]
-                
-                operandsHistory[index] = operandsHistory[validIndex]! / operandsHistory[index+1]!
-                if currentValue == nil {
-                    operandsHistory[lastNumberIndex] = nil
-                }
-                operatorsHistory[index] = nil
-                operandsHistory[index+1] = nil
-                
-                lastNumberIndex = index
-            } else if symbol != nil {
-                lastNumberIndex = index
             }
         }
         
-        accumulator = nil
-        operandsHistory = operandsHistory.filter { $0 != nil }
-        operatorsHistory = operatorsHistory.filter { $0 != nil }
-        print(operandsHistory)
-        print(operatorsHistory)
-        
-        for (index, symbol) in operatorsHistory.enumerated() {
-            if symbol == "+" {
-                if accumulator == nil {
-                    accumulator = operandsHistory[index]
-                }
-                accumulator! += operandsHistory[index+1]!
-            } else if symbol == "-" {
-                if accumulator == nil {
-                    accumulator = operandsHistory[index]
-                }
-                accumulator! -= operandsHistory[index+1]!
+        print(evaluators)
+    }
+    
+    private func evaluate(_ symbol: String, _ id: Int) -> (Double, Int) {
+    if let number = Double(symbol) {
+        return (number, id)
+    }
+        if let operation = operations[symbol] {
+            switch operation {
+            case .constant(let value):
+                return (value, id)
+            case .unaryOperation(let function):
+                let (result, rightMostOperand) = evaluate(evaluators[id+1], id+1)
+                return (function(result), rightMostOperand)
+            case .binaryOperation(let function):
+                let (result, rightMostOperand) = evaluate(evaluators[id+1], id+1)
+                let (result1, rmo1) = evaluate(evaluators[rightMostOperand+1], rightMostOperand+1)
+                return (function(result, result1), rmo1)
+            default:
+                return (0, 0)
             }
         }
-        
-        accumulator = accumulator ?? operandsHistory[operandsHistory.count - 1]
-        
-        print(accumulator)
-    }
-    
-    
-    mutating func setOperand(_ operand: Double, _ isNew: Bool) {
-        accumulator = operand
-        self.isNew = isNew
-    }
-    
-    public func getHistory() -> String {
-        var string = ""
-        for (index, symbol) in operatorsHistory.enumerated() {
-            string += "\((operandsHistory[index]!.truncatingRemainder(dividingBy: 1) == 0 ? "\(Int(operandsHistory[index]!))" : "\(Double(operandsHistory[index]!))"))\(symbol!)"
-        }
-        
-        return string
-    }
-    
-    var result: Double? {
-        get {
-            return accumulator
-        }
+        return (0, 0)
     }
     
 }
