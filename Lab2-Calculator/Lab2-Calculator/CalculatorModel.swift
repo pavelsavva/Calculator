@@ -2,7 +2,7 @@
 //  CalculatorModel.swift
 //  Lab2-Calculator
 //
-//  Created by Student on 9/17/17.
+//  Created by Pavel Savva on 9/17/17.
 //
 //
 
@@ -10,34 +10,39 @@ import Foundation
 
 struct CalculatorBrain {
     
-    private var memory: Double = 0
-    private var operators = [String]()
-    private var evaluators = [String]()
+    private var memory: String
+    private var inputSequence = [String]()
+    private var evaluationSequence = [String]()
     
-    private var currentState: State
-
-    init() {
-        currentState = .cleared
-    }
+    //Current state of the calculator brain
+    public private (set) var calculatorState: State
     
     private enum Operation {
         case constant(Double)
         case unaryOperation((Double) -> Double)
         case binaryOperation((Double, Double) -> Double)
         case equals()
-        case unaryMemoryOperation((inout Double) -> Void)
-        case binaryMemoryOperation((inout Double, inout Double) -> Void)
+        case unaryMemoryOperation((inout String) -> Void)
+        case binaryMemoryOperation((inout String, String) -> Void)
         case clear()
         case decimal()
+        case memoryRestore()
     }
     
-    private enum State {
+    //States of the calculator brain
+    public enum State {
         case precalculated
         case calculated
         case binary
         case unary
         case cleared
         case decimal
+        case precleared
+    }
+    
+    init() {
+        calculatorState = .calculated
+        memory = "0"
     }
     
     private var operations: Dictionary<String, Operation> = [
@@ -61,11 +66,15 @@ struct CalculatorBrain {
         "C": Operation.clear(),
         ".": Operation.decimal(),
         
-        "MC": Operation.unaryMemoryOperation({$0 = 0}),
+        "MC": Operation.unaryMemoryOperation({$0 = "0"}),
         
-        "MR": Operation.binaryMemoryOperation({$1 = $0}),
+        "MR": Operation.memoryRestore(),
+        
         "MS": Operation.binaryMemoryOperation({$0 = $1}),
-        "M+": Operation.binaryMemoryOperation({$0 += $1})
+        "M+": Operation.binaryMemoryOperation({
+            let result = Double($0)! + Double($1)!
+            $0 = result.truncatingRemainder(dividingBy: 1) == 0 ? "\(Int(result))" : "\(Double(result))"
+        })
     ]
     
     private var binaryOperatorsPrecedence: Dictionary<String, Int> = [
@@ -75,180 +84,234 @@ struct CalculatorBrain {
         "/": 1
     ]
     
-//            case .binaryMemoryOperation(let function):
-//                if accumulator != nil {
-//                    function(&memory, &accumulator!)
-//                }
-//
-//            case .unaryMemoryOperation(let function):
-//                function(&memory)
-//
-//            }
-    
-    mutating func setOperand(_ operand: String) -> (Double?, String) {
+    /**
+     This adds the input operand to the current operator sequence.
+     */
+    mutating public func setOperand(_ operand: String) {
         
         if Int(operand) != nil {
-            switch currentState {
-            case .calculated:
-                operators = []
-                fallthrough
-            case .binary,
-                 .unary,
-                 .cleared:
-                operators.append(operand)
-                currentState = .precalculated
-            case .precalculated:
-                if Double(operators[operators.count -  1]) != nil {
-                operators[operators.count -  1] += operand
-                } else {
-                    operators[operators.count -  1] = operand
-                }
-                currentState = .precalculated
-            case .decimal:
-                operators[operators.count -  1] += ".\(operand)"
-                currentState = .precalculated
+            
+            switch calculatorState {
+                
+                case .calculated:
+                    inputSequence = []
+                    fallthrough
+                
+                case .binary,
+                     .unary,
+                     .cleared,
+                     .precleared:
+                    inputSequence.append(operand)
+                    calculatorState = .precalculated
+                
+                case .precalculated:
+                    if Double(inputSequence[inputSequence.count -  1]) != nil && inputSequence[inputSequence.count -  1] != "0"{
+                        inputSequence[inputSequence.count -  1] += operand
+                    } else {
+                        inputSequence[inputSequence.count -  1] = operand
+                    }
+                    calculatorState = .precalculated
+                
+                case .decimal:
+                    inputSequence[inputSequence.count -  1] += ".\(operand)"
+                    calculatorState = .precalculated
+                
             }
+            
         } else if let operation = operations[operand] {
             
             switch operation {
                 
-            case .constant(_):
-                switch currentState {
+                case .constant(_):
+                    switch calculatorState {
                     case .calculated:
-                        operators = []
+                        inputSequence = []
                         fallthrough
                     case .binary,
                          .unary,
-                         .cleared:
-                        operators.append(operand)
-                        currentState = .precalculated
+                         .cleared,
+                         .precleared:
+                        inputSequence.append(operand)
+                        calculatorState = .precalculated
                     case .precalculated,
                          .decimal:
-                        operators[operators.count - 1] = operand
-                        currentState = .precalculated
+                        inputSequence[inputSequence.count - 1] = operand
+                        calculatorState = .precalculated
                     }
                 
-            case .unaryOperation(_):
-                switch currentState {
+                case .unaryOperation(_):
+                    switch calculatorState {
                     case .calculated:
-                        operators = []
+                        inputSequence = []
                         fallthrough
                     case .binary,
                          .cleared,
-                         .unary:
-                        operators.append(operand)
-                        currentState = .unary
+                         .unary,
+                         .precleared:
+                        inputSequence.append(operand)
+                        calculatorState = .unary
                     case .precalculated,
                          .decimal:
                         break
-                }
-                
-            case .binaryOperation(_):
-                switch currentState {
-                case .precalculated:
-                    operators.append(operand)
-                    currentState = .binary
-                case .binary:
-                    operators[operators.count - 1] = operand
-                    case .unary,
-                     .decimal,
-                     .calculated,
-                     .cleared:
-                    break
-                }
-                
-            case .equals:
-                break
-            case .unaryMemoryOperation(_):
-                break
-            case .binaryMemoryOperation(_):
-                break
-            case .clear:
-                operators = []
-                currentState = .cleared
-            case .decimal:
-                switch currentState {
-                case .calculated:
-                    operators = []
-                    fallthrough
-                case .cleared,
-                     .binary,
-                     .unary:
-                    operators.append("0")
-                    currentState = .decimal
-                case .precalculated:
-                    if !operators[operators.count - 1].contains(".") && Double(operators[operators.count -  1]) != nil {
-                        currentState = .decimal
                     }
+                
+                case .binaryOperation(_):
+                    switch calculatorState {
+                    case .precalculated,
+                         .precleared:
+                        inputSequence.append(operand)
+                        calculatorState = .binary
+                    case .binary:
+                        inputSequence[inputSequence.count - 1] = operand
+                    case .unary,
+                         .decimal,
+                         .calculated,
+                         .cleared:
+                        break
+                    }
+                
+                case .equals:
+                    if calculatorState == .precalculated {
+                        calculatorState = .calculated
+                    }
+                
+                case .unaryMemoryOperation(let function):
+                    function(&memory)
+                
+                case .binaryMemoryOperation(let function):
+                    if calculatorState == .precalculated || calculatorState == .calculated {
+                        function(&memory, getResult())
+                    }
+                
+                case .memoryRestore() :
+                    switch calculatorState {
+                    case .calculated:
+                        inputSequence = []
+                        fallthrough
+                    case .binary,
+                         .unary,
+                         .cleared,
+                         .precleared:
+                        inputSequence.append(memory)
+                        calculatorState = .precalculated
+                    case .precalculated,
+                         .decimal:
+                        inputSequence[inputSequence.count - 1] = memory
+                        calculatorState = .precalculated
+                    }
+                
+                case .clear:
+                    if calculatorState == .precleared {
+                        inputSequence = []
+                        calculatorState = .cleared
+                    } else if calculatorState != .cleared {
+                        inputSequence.remove(at: inputSequence.count - 1)
+                        calculatorState = .precleared
+                    }
+                
                 case .decimal:
-                    break
-                }
+                    switch calculatorState {
+                    case .calculated:
+                        inputSequence = []
+                        fallthrough
+                    case .cleared,
+                         .binary,
+                         .unary,
+                         .precleared:
+                        inputSequence.append("0")
+                        calculatorState = .decimal
+                    case .precalculated:
+                        if !inputSequence[inputSequence.count - 1].contains(".") && Double(inputSequence[inputSequence.count -  1]) != nil {
+                            calculatorState = .decimal
+                        }
+                    case .decimal:
+                        break
+                    }
+                
             }
             
         }
         
-        if currentState == .precalculated {
-            evaluateOperators()
-            return (evaluate(evaluators[0], 0).0, operators.joined(separator: ""))
-        } else {
-            if currentState == .decimal {
-                return (nil, operators.joined(separator: "")+".")
-            } else {
-            return (nil, operators.joined(separator: ""))
-            }
-        }
+    }
+    
+    /**
+     This method return the result that the current operator sequence evaluates to.
+     */
+    mutating public func getResult() -> String {
         
+        if calculatorState == .precalculated || calculatorState == .calculated{
+            
+            evaluateOperators()
+            
+            let result = evaluate(evaluationSequence.first!, 0)
+            
+            return (result.0.truncatingRemainder(dividingBy: 1) == 0 ? "\(Int(result.0))" : "\(Double(result.0))")
+            
+        } else {
+            return ""
+        }
+    }
+    
+    /**
+     This method returns the current operator sequence.
+     */
+    public func getHistory() -> [(String)] {
+        return inputSequence
     }
     
     mutating private func evaluateOperators() {
-        evaluators = []
+        evaluationSequence = []
         
-        for operand in operators {
+        for operand in inputSequence {
+            
             if Double(operand) != nil {
-                evaluators.append(operand)
+                
+                evaluationSequence.append(operand)
+                
             } else if let operation = operations[operand] {
                 
                 switch operation {
                 case .constant(_):
-                    evaluators.append(operand)
+                    evaluationSequence.append(operand)
                 case .unaryOperation(_):
-                    evaluators.append(operand)
+                    evaluationSequence.append(operand)
                 case .binaryOperation(_):
                     if let precedence = binaryOperatorsPrecedence[operand] {
                         if precedence == 0 {
-                            evaluators.insert(operand, at: 0)
+                            evaluationSequence.insert(operand, at: 0)
                         } else if precedence == 1 {
-                            evaluators.insert(operand, at: evaluators.count - 1)
+                            evaluationSequence.insert(operand, at: evaluationSequence.count - 1)
                         }
                     }
                 case .equals,
                      .unaryMemoryOperation(_),
                      .binaryMemoryOperation(_),
                      .clear,
-                     .decimal:
+                     .decimal,
+                     .memoryRestore():
                     break
                 }
                 
             }
+            
         }
-        
-        print(evaluators)
     }
     
-    private func evaluate(_ symbol: String, _ id: Int) -> (Double, Int) {
-    if let number = Double(symbol) {
-        return (number, id)
-    }
+    private func evaluate(_ symbol: String, _ index: Int) -> (Double, Int) {
+        
+        if let number = Double(symbol) {
+            return (number, index)
+        }
         if let operation = operations[symbol] {
             switch operation {
             case .constant(let value):
-                return (value, id)
+                return (value, index)
             case .unaryOperation(let function):
-                let (result, rightMostOperand) = evaluate(evaluators[id+1], id+1)
+                let (result, rightMostOperand) = evaluate(evaluationSequence[index+1], index+1)
                 return (function(result), rightMostOperand)
             case .binaryOperation(let function):
-                let (result, rightMostOperand) = evaluate(evaluators[id+1], id+1)
-                let (result1, rmo1) = evaluate(evaluators[rightMostOperand+1], rightMostOperand+1)
+                let (result, rightMostOperand) = evaluate(evaluationSequence[index+1], index+1)
+                let (result1, rmo1) = evaluate(evaluationSequence[rightMostOperand+1], rightMostOperand+1)
                 return (function(result, result1), rmo1)
             default:
                 return (0, 0)

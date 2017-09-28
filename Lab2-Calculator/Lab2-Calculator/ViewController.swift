@@ -2,7 +2,7 @@
 //  ViewController.swift
 //  Lab2-Calculator
 //
-//  Created by Student on 9/13/17.
+//  Created by Pavel Savva on 9/13/17.
 //
 //
 
@@ -10,16 +10,16 @@ import UIKit
 
 class ViewController: UIViewController {
     
-    //Collection of all buttons to set borders
+    //Collection of buttons with grey borders
     @IBOutlet var buttons: [UIButton]! {
         didSet {
             for button in buttons {
                 button.layer.borderWidth = 0.5
-                button.layer.borderColor = UIColor.white.cgColor
+                button.layer.borderColor = UIColor(red:0.75, green:0.75, blue:0.75, alpha:0.3).cgColor
             }
         }
     }
-    
+
     @IBOutlet weak var resultDisplay: UILabel!
     private var resultDisplayValue: String {
         get {
@@ -36,25 +36,24 @@ class ViewController: UIViewController {
             return currentOperationsSequenceDisplay.text!
         }
         set {
-            currentOperationsSequenceDisplay.text! = newValue
+            currentOperationsSequenceDisplay.text! = newValue 
         }
     }
     
     private var brain: CalculatorBrain = CalculatorBrain()
     
     @IBAction func onButtonPressed(_ sender: UIButton) {
-        let (result, history) = brain.setOperand(sender.currentTitle!)
-        setMainDisplayValue(result)
-        currentOperationsSequenceDisplayValue = history
-    }
-    
-    private func setMainDisplayValue(_ number: Double?) {
-        if number != nil {
-        resultDisplayValue = (number!.truncatingRemainder(dividingBy: 1) == 0 ? "\(Int(number!))" : "\(Double(number!))")
+        
+        brain.setOperand(sender.currentTitle!)
+        if brain.calculatorState == .calculated {
+            currentOperationsSequenceDisplayValue = ""
+            resultDisplayValue = brain.getHistory().joined(separator: "") + "=" + brain.getResult()
         } else {
-            resultDisplayValue = ""
+        resultDisplayValue = brain.getResult()
+        currentOperationsSequenceDisplayValue = brain.getHistory().joined(separator: "")
         }
+        
     }
-    
+
 }
 
