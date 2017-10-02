@@ -13,6 +13,10 @@ struct CalculatorBrain {
     private var memory: String
     private var inputSequence = [String]()
     private var evaluationSequence = [String]()
+    private var precleared = false
+    private var lastState: State
+    private var openedParentheses = 0
+    
     
     //Current state of the calculator brain
     public private (set) var calculatorState: State
@@ -27,6 +31,9 @@ struct CalculatorBrain {
         case clear()
         case decimal()
         case memoryRestore()
+        case parentheses()
+        case openParenthesis()
+        case closedParenthesis()
     }
     
     //States of the calculator brain
@@ -37,12 +44,12 @@ struct CalculatorBrain {
         case unary
         case cleared
         case decimal
-        case precleared
     }
     
     init() {
-        calculatorState = .calculated
+        calculatorState = .cleared
         memory = "0"
+        lastState = .cleared
     }
     
     private var operations: Dictionary<String, Operation> = [
@@ -74,14 +81,17 @@ struct CalculatorBrain {
         "M+": Operation.binaryMemoryOperation({
             let result = Double($0)! + Double($1)!
             $0 = result.truncatingRemainder(dividingBy: 1) == 0 ? "\(Int(result))" : "\(Double(result))"
-        })
+        }),
+        "(": Operation.openParenthesis(),
+        ")": Operation.closedParenthesis(),
+        "( )": Operation.parentheses()
     ]
     
     private var binaryOperatorsPrecedence: Dictionary<String, Int> = [
-        "+": 0,
-        "-": 0,
-        "*": 1,
-        "/": 1
+        "+": 1,
+        "-": 1,
+        "*": 2,
+        "/": 2
     ]
     
     /**
@@ -99,8 +109,7 @@ struct CalculatorBrain {
                 
                 case .binary,
                      .unary,
-                     .cleared,
-                     .precleared:
+                     .cleared:
                     inputSequence.append(operand)
                     calculatorState = .precalculated
                 
@@ -113,10 +122,12 @@ struct CalculatorBrain {
                     calculatorState = .precalculated
                 
                 case .decimal:
-                    inputSequence[inputSequence.count -  1] += ".\(operand)"
+                    inputSequence[inputSequence.count -  1] += "\(operand)"
                     calculatorState = .precalculated
                 
             }
+            
+            precleared = false
             
         } else if let operation = operations[operand] {
             
@@ -129,8 +140,7 @@ struct CalculatorBrain {
                         fallthrough
                     case .binary,
                          .unary,
-                         .cleared,
-                         .precleared:
+                         .cleared:
                         inputSequence.append(operand)
                         calculatorState = .precalculated
                     case .precalculated,
@@ -146,9 +156,9 @@ struct CalculatorBrain {
                         fallthrough
                     case .binary,
                          .cleared,
-                         .unary,
-                         .precleared:
+                         .unary:
                         inputSequence.append(operand)
+                        self.setOperand("(")
                         calculatorState = .unary
                     case .precalculated,
                          .decimal:
@@ -157,8 +167,7 @@ struct CalculatorBrain {
                 
                 case .binaryOperation(_):
                     switch calculatorState {
-                    case .precalculated,
-                         .precleared:
+                    case .precalculated:
                         inputSequence.append(operand)
                         calculatorState = .binary
                     case .binary:
@@ -190,8 +199,7 @@ struct CalculatorBrain {
                         fallthrough
                     case .binary,
                          .unary,
-                         .cleared,
-                         .precleared:
+                         .cleared:
                         inputSequence.append(memory)
                         calculatorState = .precalculated
                     case .precalculated,
@@ -201,12 +209,13 @@ struct CalculatorBrain {
                     }
                 
                 case .clear:
-                    if calculatorState == .precleared {
+                    if precleared {
                         inputSequence = []
                         calculatorState = .cleared
                     } else if calculatorState != .cleared {
                         inputSequence.remove(at: inputSequence.count - 1)
-                        calculatorState = .precleared
+                        calculatorState = lastState
+                        precleared = true
                     }
                 
                 case .decimal:
@@ -216,21 +225,74 @@ struct CalculatorBrain {
                         fallthrough
                     case .cleared,
                          .binary,
-                         .unary,
-                         .precleared:
-                        inputSequence.append("0")
+                         .unary:
+                        inputSequence.append("0.")
                         calculatorState = .decimal
                     case .precalculated:
                         if !inputSequence[inputSequence.count - 1].contains(".") && Double(inputSequence[inputSequence.count -  1]) != nil {
+                            inputSequence[inputSequence.count - 1] += "."
                             calculatorState = .decimal
                         }
                     case .decimal:
                         break
                     }
                 
+                case .parentheses():
+                    switch calculatorState {
+                        case .calculated:
+                            inputSequence = []
+                            fallthrough
+                        case .cleared:
+                            setOperand("(")
+                        case .precalculated:
+                            if openedParentheses > 0 {
+                                setOperand(")")
+                            }
+                        case .binary:
+                            setOperand("(")
+                        case .decimal,
+                             .unary:
+                            break
+                    }
+                
+                case .openParenthesis:
+                    inputSequence.append(operand)
+                    openedParentheses += 1
+                case .closedParenthesis:
+                    inputSequence.append(operand)
+                    openedParentheses -= 1
             }
             
+            switch operation {
+            case .clear(),
+                 .decimal(),
+                 .openParenthesis(),
+                 .closedParenthesis(),
+                 .parentheses():
+                break;
+            default:
+                lastState = calculatorState
+                precleared = false
+            }
+            
+            
         }
+        
+//        if let operation = operations[operand] {
+//
+//            switch operation {
+//            case .clear():
+//                if let lastOperand = inputSequence.last {
+//                    inputSequence.removeLast()
+//                    self.setOperand(lastOperand)
+//                    print(lastOperand)
+//                    precleared = true
+//                }
+//            default:
+//                precleared = false
+//            }
+//
+//        }
         
     }
     
@@ -260,6 +322,10 @@ struct CalculatorBrain {
     }
     
     mutating private func evaluateOperators() {
+        var currentPrecedence = 0
+        var lastHighPrecedenceIndex = 0
+        var precedenceIndex = 0
+        
         evaluationSequence = []
         
         for operand in inputSequence {
@@ -276,25 +342,39 @@ struct CalculatorBrain {
                 case .unaryOperation(_):
                     evaluationSequence.append(operand)
                 case .binaryOperation(_):
-                    if let precedence = binaryOperatorsPrecedence[operand] {
-                        if precedence == 0 {
-                            evaluationSequence.insert(operand, at: 0)
-                        } else if precedence == 1 {
+                    if var precedence = binaryOperatorsPrecedence[operand] {
+                        precedence += precedenceIndex
+                        print("Operator \(operand) has precedence of \(precedence) with current precedence of \(currentPrecedence)")
+                        if precedence <= currentPrecedence {
+                            evaluationSequence.insert(operand, at: lastHighPrecedenceIndex)
+                            currentPrecedence = precedence
+                        } else if precedence > currentPrecedence {
+                            lastHighPrecedenceIndex = evaluationSequence.count - 1
                             evaluationSequence.insert(operand, at: evaluationSequence.count - 1)
+                            currentPrecedence = precedence
                         }
                     }
+                case .openParenthesis():
+                    precedenceIndex += 10
+                    break
+                case .closedParenthesis():
+                    precedenceIndex -= 10
+                    break
                 case .equals,
                      .unaryMemoryOperation(_),
                      .binaryMemoryOperation(_),
                      .clear,
                      .decimal,
-                     .memoryRestore():
+                     .memoryRestore(),
+                     .parentheses():
                     break
                 }
                 
             }
             
         }
+        
+        print(evaluationSequence)
     }
     
     private func evaluate(_ symbol: String, _ index: Int) -> (Double, Int) {

@@ -13,6 +13,7 @@
 		3F2BB9E11F69914D003CDC1A /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 3F2BB9DF1F69914D003CDC1A /* Main.storyboard */; };
 		3F2BB9E31F69914D003CDC1A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3F2BB9E21F69914D003CDC1A /* Assets.xcassets */; };
 		3F2BB9E61F69914D003CDC1A /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 3F2BB9E41F69914D003CDC1A /* LaunchScreen.storyboard */; };
+		3FF782BD1F81C61A00170633 /* CustomKeyInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF782BC1F81C61A00170633 /* CustomKeyInput.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -24,6 +25,7 @@
 		3F2BB9E21F69914D003CDC1A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		3F2BB9E51F69914D003CDC1A /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		3F2BB9E71F69914D003CDC1A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		3FF782BC1F81C61A00170633 /* CustomKeyInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomKeyInput.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -60,6 +62,7 @@
 				3F2BB9DB1F69914D003CDC1A /* AppDelegate.swift */,
 				3F2BB9DD1F69914D003CDC1A /* ViewController.swift */,
 				3F2BB9DF1F69914D003CDC1A /* Main.storyboard */,
+				3FF782BC1F81C61A00170633 /* CustomKeyInput.swift */,
 				3F2BB9E21F69914D003CDC1A /* Assets.xcassets */,
 				3F2BB9E41F69914D003CDC1A /* LaunchScreen.storyboard */,
 				3F2BB9E71F69914D003CDC1A /* Info.plist */,
@@ -98,7 +101,7 @@
 				TargetAttributes = {
 					3F2BB9D71F69914D003CDC1A = {
 						CreatedOnToolsVersion = 8.3.3;
-						DevelopmentTeam = EB49TDMP52;
+						DevelopmentTeam = 6WA6Y7KBQJ;
 						LastSwiftMigration = 0900;
 						ProvisioningStyle = Automatic;
 					};
@@ -143,6 +146,7 @@
 				3F0B5D011F6F1D7A009EFA6C /* CalculatorModel.swift in Sources */,
 				3F2BB9DE1F69914D003CDC1A /* ViewController.swift in Sources */,
 				3F2BB9DC1F69914D003CDC1A /* AppDelegate.swift in Sources */,
+				3FF782BD1F81C61A00170633 /* CustomKeyInput.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -279,7 +283,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				DEVELOPMENT_TEAM = EB49TDMP52;
+				DEVELOPMENT_TEAM = 6WA6Y7KBQJ;
 				INFOPLIST_FILE = "Lab2-Calculator/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				PRODUCT_BUNDLE_IDENTIFIER = "pashasavva.Lab2-Calculator";
@@ -293,7 +297,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				DEVELOPMENT_TEAM = EB49TDMP52;
+				DEVELOPMENT_TEAM = 6WA6Y7KBQJ;
 				INFOPLIST_FILE = "Lab2-Calculator/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				PRODUCT_BUNDLE_IDENTIFIER = "pashasavva.Lab2-Calculator";
