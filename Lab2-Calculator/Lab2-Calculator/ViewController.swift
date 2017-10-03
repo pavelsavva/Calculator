@@ -68,34 +68,41 @@ class ViewController: UIViewController {
     private var brain: CalculatorBrain = CalculatorBrain()
     
     @IBAction func onButtonPressed(_ sender: UIButton) {
-        
-        if sender.currentTitle == "x" {
+        processAction(sender.currentTitle!)
+    }
+    
+    public func processAction(_ action: String) {
+        if action == "→x" {
+            keyView.setBrainController(self)
             keyView.becomeFirstResponder()
-
-            //textView.becomeFirstResponder()
-            
-        } else {
-        
-        brain.setOperand(sender.currentTitle!)
-        if brain.calculatorState == .calculated {
-            currentOperationsSequenceDisplayValue = ""
-            resultDisplayValue = brain.getHistory().joined(separator: "") + "=" + brain.getResult()
-        } else {
-            resultDisplayValue = brain.getResult()
-            currentOperationsSequenceDisplayValue = brain.getHistory().joined(separator: "")
         }
         
-        if brain.calculatorState == .calculated {
-            equalsButton.setTitle("→x", for: .normal)
-        } else if brain.calculatorState == .precalculated {
-            equalsButton.setTitle("=", for: .normal)
-        } else if brain.calculatorState == .binary || brain.calculatorState == .unary {
-            equalsButton.setTitle("x→", for: .normal)
-        } else if brain.calculatorState == .cleared {
-            equalsButton.setTitle("x", for: .normal)
-        }
-            
-        }
+            var variable = brain.variable
+            brain.setOperand(action)
+        
+            if brain.currentState == .calculated {
+                currentOperationsSequenceDisplayValue = ""
+                resultDisplayValue = brain.getHistory().joined(separator: "") + "=" + brain.getResult()
+                if variable != nil {
+                    resultDisplayValue = variable! + "=" + brain.getHistory().joined(separator: "") + "=" + brain.getResult()
+                }
+            } else {
+                resultDisplayValue = brain.getResult()
+                currentOperationsSequenceDisplayValue = brain.getHistory().joined(separator: "")
+                if brain.variable != nil {
+                    currentOperationsSequenceDisplayValue = brain.variable! + "=" + brain.getHistory().joined(separator: "")
+                }
+            }
+        
+            if brain.currentState == .calculated || brain.currentState == .cleared {
+                equalsButton.setTitle("→x", for: .normal)
+            } else if brain.currentState == .precalculated || brain.currentState == .variable {
+                equalsButton.setTitle("=", for: .normal)
+            } else if brain.currentState == .binary || brain.currentState == .unary {
+                equalsButton.setTitle("→x", for: .normal)
+            }
+        
+        
         
     }
 
