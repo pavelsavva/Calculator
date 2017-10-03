@@ -137,7 +137,6 @@ struct CalculatorBrain {
     mutating public func setOperand(_ operand: String) {
         
         if currentState == .variableNameInput && operand != "⇤" && operand != "\n"{
-            if let operation = 
             if inputSequence.isEmpty {
                 inputSequence.append("")
             }
