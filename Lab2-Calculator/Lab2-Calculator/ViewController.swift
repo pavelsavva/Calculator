@@ -13,6 +13,18 @@ import UIKit
 
 class ViewController: UIViewController {
     
+    //Add left swipe recognizer
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        
+        let leftSwipeRecognizer = UISwipeGestureRecognizer(target: self, action: #selector(undo))
+        
+        leftSwipeRecognizer.direction = .left
+        
+        view.addGestureRecognizer(leftSwipeRecognizer)
+        
+    }
+    
     //Collection of buttons with grey borders
     @IBOutlet var buttons: [UIButton]! {
         didSet {
@@ -23,25 +35,13 @@ class ViewController: UIViewController {
         }
     }
     
-
+    //Process left swipe as undo
+    @objc func undo(sender:UISwipeGestureRecognizer) {
+        processAction("⇤")
+    }
+    
+    //Hidden view that wil show the standard keyboard. Used to process keys pressed in the ViewController instead of displaying them in a UITextView.
     @IBOutlet weak var keyView: CustomKeyInput!
-    
-//
-//    override func viewWillAppear(_ animated: Bool) {
-//        NotificationCenter.default.addObserver(self, selector: #selector(keyBoardWillShow(notification:)), name: .UIKeyboardWillShow, object: nil)
-//        NotificationCenter.default.addObserver(self, selector: #selector(keyBoardWillHide(notification:)), name: .UIKeyboardWillHide, object: nil)
-//    }
-//
-//    @objc func keyBoardWillShow(notification: NSNotification) {
-//        print(notification)
-//    }
-//
-//
-//    @objc func keyBoardWillHide(notification: NSNotification) {
-//        //handle dismiss of keyboard here
-//    }
-    
-    //@IBOutlet weak var textView: UITextView!
     
     @IBOutlet weak var equalsButton: UIButton!
     
@@ -72,39 +72,56 @@ class ViewController: UIViewController {
     }
     
     public func processAction(_ action: String) {
-        if action == "→x" {
-            keyView.setBrainController(self)
-            keyView.becomeFirstResponder()
+       
+        //Save the name of the variable to display in the result window, before the brain changes it
+        let variableBeingAssigned = brain.variableBeingAssigned
+        
+        brain.setOperand(action)
+        
+        resultDisplayValue = brain.getResult()
+        
+        currentOperationsSequenceDisplayValue = brain.getHistory().joined(separator: "")
+        
+        if brain.variableBeingAssigned != nil {
+            currentOperationsSequenceDisplayValue = brain.variableBeingAssigned! + "=" + brain.getHistory().joined(separator: "")
         }
         
-            var variable = brain.variable
-            brain.setOperand(action)
-        
-            if brain.currentState == .calculated {
-                currentOperationsSequenceDisplayValue = ""
-                resultDisplayValue = brain.getHistory().joined(separator: "") + "=" + brain.getResult()
-                if variable != nil {
-                    resultDisplayValue = variable! + "=" + brain.getHistory().joined(separator: "") + "=" + brain.getResult()
-                }
+        switch brain.currentState {
+        case .variableNameInput:
+            //Open the default iOS keyboard
+            keyView.setBrainController(self)
+            keyView.becomeFirstResponder()
+        case .precalculated,
+             .newVariable:
+            //Variable cannot be created or inserted
+            equalsButton.setTitle("=", for: .normal)
+        case .calculated:
+            currentOperationsSequenceDisplayValue = ""
+            
+            //Display the assignment result or ignore if no assignment was made
+            if variableBeingAssigned != nil {
+                resultDisplayValue = variableBeingAssigned! + "="
             } else {
-                resultDisplayValue = brain.getResult()
-                currentOperationsSequenceDisplayValue = brain.getHistory().joined(separator: "")
-                if brain.variable != nil {
-                    currentOperationsSequenceDisplayValue = brain.variable! + "=" + brain.getHistory().joined(separator: "")
-                }
+                resultDisplayValue = ""
             }
-        
-            if brain.currentState == .calculated || brain.currentState == .cleared {
-                equalsButton.setTitle("→x", for: .normal)
-            } else if brain.currentState == .precalculated || brain.currentState == .variable {
-                equalsButton.setTitle("=", for: .normal)
-            } else if brain.currentState == .binary || brain.currentState == .unary {
-                equalsButton.setTitle("→x", for: .normal)
+            
+            if brain.getHistory().count != 1 {
+                resultDisplayValue += brain.getHistory().joined(separator: "") + "="
             }
-        
-        
-        
+            
+            resultDisplayValue += brain.getResult()
+            
+            fallthrough
+            
+        case .cleared,
+             .binary,
+             .unary:
+            //Variable can be created or inserted
+            equalsButton.setTitle("→x", for: .normal)
+        default:
+            break
+        }
     }
-
+    
 }
 
