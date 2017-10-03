@@ -30,6 +30,8 @@ struct CalculatorBrain {
     //Current state of the calculator brain
     public private (set) var currentState: State
     
+    private var states = [State]()
+    
     //States of the calculator brain
     public enum State {
         case precalculated
@@ -86,7 +88,7 @@ struct CalculatorBrain {
         "cot": ArithmeticOperation.unaryOperation({1/tan($0)}),
         "±": ArithmeticOperation.unaryOperation({-$0}),
         "ln": ArithmeticOperation.unaryOperation({log($0)}),
-    ]
+        ]
     
     private var memoryOperations: Dictionary<String, MemoryOperation> = [
         "MC": MemoryOperation.unaryMemoryOperation({$0 = "0"}),
@@ -130,8 +132,8 @@ struct CalculatorBrain {
         currentState = .variableNameInput
         setOperand(variableName)
         setOperand("\n")
+        states.append(currentState)
     }
-    
     
     //This adds the input operand to the current operator sequence.
     mutating public func setOperand(_ operand: String) {
@@ -141,210 +143,48 @@ struct CalculatorBrain {
                 inputSequence.append("")
             }
             inputSequence[inputSequence.count - 1] += operand
-            print(inputSequence)
         } else {
             
             if Int(operand) != nil {
-                
-                switch currentState {
-                    
-                case .calculated:
-                    inputSequence = []
-                    fallthrough
-                    
-                case .binary,
-                     .unary,
-                     .cleared:
-                    inputSequence.append(operand)
-                    currentState = .precalculated
-                    
-                case .precalculated:
-                    if Double(inputSequence[inputSequence.count -  1]) != nil && inputSequence[inputSequence.count -  1] != "0"{
-                        inputSequence[inputSequence.count -  1] += operand
-                    } else {
-                        inputSequence[inputSequence.count -  1] = operand
-                    }
-                    currentState = .precalculated
-                    
-                case .decimal:
-                    inputSequence[inputSequence.count -  1] += "\(operand)"
-                    currentState = .precalculated
-                    
-                case .variableNameInput,
-                     .newVariable:
-                    break
-                    
-                }
-                
-                precleared = false
+                processIntegerInput(operand)
                 
             } else if let operation = operations[operand] {
-                
                 switch operation {
-                    
                 case .constant(_):
-                    switch currentState {
-                    case .calculated:
-                        inputSequence = []
-                        fallthrough
-                    case .binary,
-                         .unary,
-                         .cleared:
-                        inputSequence.append(operand)
-                        currentState = .precalculated
-                    case .precalculated,
-                         .decimal:
-                        inputSequence[inputSequence.count - 1] = operand
-                        currentState = .precalculated
-                    case .variableNameInput,
-                         .newVariable:
-                        break
-                    }
-                    
+                    processConstantInput(operand)
                 case .unaryOperation(_):
-                    switch currentState {
-                    case .calculated:
-                        inputSequence = []
-                        fallthrough
-                    case .binary,
-                         .cleared,
-                         .unary:
-                        inputSequence.append(operand)
-                        self.setOperand("(")
-                        currentState = .unary
-                    case .precalculated,
-                         .decimal,
-                         .variableNameInput,
-                         .newVariable:
-                        break
-                    }
-                    
+                    processUnaryFunctionInput(operand)
                 case .binaryOperation(_):
-                    switch currentState {
-                    case .precalculated:
-                        inputSequence.append(operand)
-                        currentState = .binary
-                    case .binary:
-                        inputSequence[inputSequence.count - 1] = operand
-                    case .unary,
-                         .decimal,
-                         .calculated,
-                         .cleared,
-                         .variableNameInput,
-                         .newVariable:
-                        break
-                    }
+                    processBinaryFunctionInput(operand)
                 }
-
-                    if currentState != .precalculated && currentState != .calculated {
-                        lastState = currentState
-                    }
-                    precleared = false
                 
+                if currentState != .precalculated && currentState != .calculated {
+                    lastState = currentState
+                }
+                precleared = false
                 
             } else if let operation = memoryOperations[operand] {
-                
                 switch operation {
-                    
                 case .unaryMemoryOperation(let function):
                     function(&memory)
-                    
                 case .binaryMemoryOperation(let function):
                     if currentState == .precalculated || currentState == .calculated {
                         function(&memory, getResult())
                     }
-                    
                 case .memoryRestore() :
-                    switch currentState {
-                    case .calculated:
-                        inputSequence = []
-                        fallthrough
-                    case .binary,
-                         .unary,
-                         .cleared:
-                        inputSequence.append(memory)
-                        currentState = .precalculated
-                    case .precalculated,
-                         .decimal:
-                        inputSequence[inputSequence.count - 1] = memory
-                        currentState = .precalculated
-                    case .variableNameInput,
-                         .newVariable:
-                        break
-                    }
+                    processMemoryRestoreInput(operand)
                 }
-            }else if let operation = inputOperations[operand] {
+                
+            } else if let operation = inputOperations[operand] {
                 switch operation {
                 case .equals:
-                    if currentState == .precalculated {
-                        if variableBeingAssigned != nil {
-                            variableValues[variableBeingAssigned!] = Double(getResult())
-                        }
-                        variableBeingAssigned = nil
-                        currentState = .calculated
-                    } else if currentState == .newVariable {
-                        currentState = .cleared
-                        variableBeingAssigned = inputSequence.removeLast()
-                    }
-                    
+                    processEqualsFunctionInput(operand)
                 case .clear:
-                    if precleared {
-                        inputSequence = []
-                        currentState = .cleared
-                        variableBeingAssigned = nil
-                        print("CLEAR")
-                    } else if currentState != .cleared {
-                        inputSequence.remove(at: inputSequence.count - 1)
-                        if !inputSequence.isEmpty {
-                            currentState = lastState
-                        } else {
-                            currentState = .cleared
-                        }
-                    }
-                    precleared = true
-                    
-                    
+                    processClearFunctionInput(operand)
                 case .decimal:
-                    switch currentState {
-                    case .calculated:
-                        inputSequence = []
-                        fallthrough
-                    case .cleared,
-                         .binary,
-                         .unary:
-                        inputSequence.append("0.")
-                        currentState = .decimal
-                    case .precalculated:
-                        if !inputSequence[inputSequence.count - 1].contains(".") && Double(inputSequence[inputSequence.count -  1]) != nil {
-                            inputSequence[inputSequence.count - 1] += "."
-                            currentState = .decimal
-                        }
-                    case .decimal,
-                         .variableNameInput,
-                         .newVariable:
-                        break
-                    }
-                    
+                    processDecimalInput(operand)
                 case .parentheses():
-                    switch currentState {
-                    case .calculated:
-                        inputSequence = []
-                        fallthrough
-                    case .cleared:
-                        setOperand("(")
-                    case .precalculated:
-                        if openedParentheses > 0 {
-                            setOperand(")")
-                        }
-                    case .binary:
-                        setOperand("(")
-                    case .decimal,
-                         .unary,
-                         .variableNameInput,
-                         .newVariable:
-                        break
-                    }
-                    
+                    processParenthesesInput(operand)
                 case .openParenthesis:
                     inputSequence.append(operand)
                     openedParentheses += 1
@@ -355,37 +195,234 @@ struct CalculatorBrain {
                     currentState = .variableNameInput
                     inputSequence.append("")
                 case .undo:
-                    if inputSequence.count != 0 {
-                        inputSequence[inputSequence.count - 1].removeLast()
-                        if inputSequence[inputSequence.count - 1].count == 0 {
-                            inputSequence.removeLast()
-                            if !inputSequence.isEmpty {
-                                print("Last state \(lastState)")
-                                currentState = lastState
-                            } else {
-                                currentState = .cleared
-                            }
-                        }
-                    }
+                    processUndo(operand)
                 case .submit():
-                    if variableValues[inputSequence[inputSequence.count - 1]] != nil {
-                        currentState = .precalculated
-                    } else {
-                        currentState = .newVariable
-                    }
+                    processSubmit(operand)
                 }
             }
             
         }
+        
+        if currentState == .precalculated || (!states.isEmpty && states[states.count - 1] != currentState) {
+            states.append(currentState)
+        }
+        
     }
     
+    private mutating func processIntegerInput(_ operand: String) {
+        
+        switch currentState {
+            
+        case .calculated:
+            inputSequence = []
+            fallthrough
+            
+        case .binary,
+             .unary,
+             .cleared:
+            inputSequence.append(operand)
+            currentState = .precalculated
+            
+        case .precalculated:
+            if Double(inputSequence[inputSequence.count -  1]) != nil && inputSequence[inputSequence.count -  1] != "0"{
+                inputSequence[inputSequence.count -  1] += operand
+            } else {
+                inputSequence[inputSequence.count -  1] = operand
+            }
+            currentState = .precalculated
+            
+        case .decimal:
+            inputSequence[inputSequence.count -  1] += "\(operand)"
+            currentState = .precalculated
+            
+        case .variableNameInput,
+             .newVariable:
+            break
+            
+        }
+        
+        precleared = false
+        
+    }
+    
+    private mutating func processConstantInput(_ operand: String) {
+        switch currentState {
+        case .calculated:
+            inputSequence = []
+            fallthrough
+        case .binary,
+             .unary,
+             .cleared:
+            inputSequence.append(operand)
+            currentState = .precalculated
+        case .precalculated,
+             .decimal:
+            inputSequence[inputSequence.count - 1] = operand
+            currentState = .precalculated
+        case .variableNameInput,
+             .newVariable:
+            break
+        }
+    }
+    
+    private mutating func processUnaryFunctionInput(_ operand: String) {
+        switch currentState {
+        case .calculated:
+            inputSequence = []
+            fallthrough
+        case .binary,
+             .cleared,
+             .unary:
+            inputSequence.append(operand)
+            self.setOperand("(")
+            currentState = .unary
+        case .precalculated,
+             .decimal,
+             .variableNameInput,
+             .newVariable:
+            break
+        }
+    }
+    
+    private mutating func processBinaryFunctionInput(_ operand: String) {
+        switch currentState {
+        case .precalculated:
+            inputSequence.append(operand)
+            currentState = .binary
+        case .binary:
+            inputSequence[inputSequence.count - 1] = operand
+        case .unary,
+             .decimal,
+             .calculated,
+             .cleared,
+             .variableNameInput,
+             .newVariable:
+            break
+        }
+    }
+    
+    private mutating func processMemoryRestoreInput(_ operand: String) {
+        switch currentState {
+        case .calculated:
+            inputSequence = []
+            fallthrough
+        case .binary,
+             .unary,
+             .cleared:
+            inputSequence.append(memory)
+            currentState = .precalculated
+        case .precalculated,
+             .decimal:
+            inputSequence[inputSequence.count - 1] = memory
+            currentState = .precalculated
+        case .variableNameInput,
+             .newVariable:
+            break
+        }
+    }
+    
+    private mutating func processEqualsFunctionInput(_ operand: String) {
+        if currentState == .precalculated {
+            if variableBeingAssigned != nil {
+                variableValues[variableBeingAssigned!] = Double(getResult())
+            }
+            variableBeingAssigned = nil
+            currentState = .calculated
+        } else if currentState == .newVariable {
+            currentState = .cleared
+            variableBeingAssigned = inputSequence.removeLast()
+        }
+    }
+    
+    private mutating func processClearFunctionInput(_ operand: String) {
+        if precleared {
+            inputSequence = []
+            currentState = .cleared
+            variableBeingAssigned = nil
+        } else if currentState != .cleared {
+            inputSequence.remove(at: inputSequence.count - 1)
+            if !inputSequence.isEmpty {
+                currentState = lastState
+            } else {
+                currentState = .cleared
+            }
+        }
+        precleared = true
+    }
+    
+    private mutating func processDecimalInput(_ operand: String) {
+        switch currentState {
+        case .calculated:
+            inputSequence = []
+            fallthrough
+        case .cleared,
+             .binary,
+             .unary:
+            inputSequence.append("0.")
+            currentState = .decimal
+        case .precalculated:
+            if !inputSequence[inputSequence.count - 1].contains(".") && Double(inputSequence[inputSequence.count -  1]) != nil {
+                inputSequence[inputSequence.count - 1] += "."
+                currentState = .decimal
+            }
+        case .decimal,
+             .variableNameInput,
+             .newVariable:
+            break
+        }
+    }
+    
+    private mutating func processParenthesesInput(_ operand: String) {
+        switch currentState {
+        case .calculated:
+            inputSequence = []
+            fallthrough
+        case .cleared:
+            setOperand("(")
+        case .precalculated:
+            if openedParentheses > 0 {
+                setOperand(")")
+            }
+        case .binary:
+            setOperand("(")
+        case .decimal,
+             .unary,
+             .variableNameInput,
+             .newVariable:
+            break
+        }
+    }
+    
+    private mutating func processUndo(_ operand: String) {
+        if states.count > 1 {
+            states.removeLast()
+            currentState = states.removeLast()
+        }
+        if inputSequence.count != 0 {
+            inputSequence[inputSequence.count - 1].removeLast()
+            if inputSequence[inputSequence.count - 1].count == 0 {
+                inputSequence.removeLast()
+                if inputSequence.isEmpty {
+                    currentState = .cleared
+                    states = [currentState]
+                }
+            }
+        }
+    }
+    
+    private mutating func processSubmit(_ operand: String) {
+        if variableValues[inputSequence[inputSequence.count - 1]] != nil {
+            currentState = .precalculated
+        } else {
+            currentState = .newVariable
+        }
+    }
+
     /**
      This method return the result that the current operator sequence evaluates to.
      */
     mutating public func getResult() -> String {
-        
-        print(currentState)
-        
+
         if currentState == .precalculated || currentState == .calculated || (currentState == .variableNameInput && variableValues[inputSequence[inputSequence.count - 1]] != nil) {
             
             createEvaluatableSequence()
@@ -431,7 +468,6 @@ struct CalculatorBrain {
                 case .binaryOperation(_):
                     if var precedence = binaryOperatorsPrecedence[operand] {
                         precedence += precedenceIndex
-                        print("Operator \(operand) has precedence of \(precedence) with current precedence of \(currentPrecedence)")
                         if precedence <= currentPrecedence {
                             if precedence - precedenceIndex == 1 {
                                 evaluatableSequence.insert(operand, at: indexes[precedenceIndex/10])
@@ -442,7 +478,6 @@ struct CalculatorBrain {
                             currentPrecedence = precedence
                         } else if precedence > currentPrecedence {
                             indexes[precedenceIndex/10] = evaluatableSequence.count - 1
-                            //lastHighPrecedenceIndex = evaluationSequence.count - 1
                             evaluatableSequence.insert(operand, at: evaluatableSequence.count - 1)
                             currentPrecedence = precedence
                         }
@@ -467,8 +502,6 @@ struct CalculatorBrain {
             }
             
         }
-        
-        print(evaluatableSequence)
     }
     
     private func evaluate(_ symbol: String, _ index: Int) -> (Double, Int) {
